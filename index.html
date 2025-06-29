@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Modbus TCP Controller</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    .socket, .expander { margin: 10px 0; }
+    button { margin-right: 10px; padding: 10px 20px; }
+    .status { display: inline-block; width: 20px; height: 20px; margin-left: 5px; border-radius: 50%; }
+    .green { background: green; }
+    .gray { background: gray; }
+  </style>
+</head>
+<body>
+  <h1>Modbus TCP Web Controller</h1>
+
+  <label>
+    IP Address:
+    <input type="text" id="ip" />
+  </label>
+  <label>
+    Port:
+    <input type="number" id="port" />
+  </label>
+  <button onclick="connect()">Connect</button>
+  <p id="connection-status"></p>
+
+  <h2>Sockets</h2>
+  <div class="socket">
+    <div id="sockets"></div>
+  </div>
+
+  <h2>Expander Outputs</h2>
+  <div class="expander">
+    <div id="expanders"></div>
+  </div>
+
+  <h2>Status</h2>
+  <div id="status"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/modbus-serial"></script>
+  <script>
+    const client = new ModbusRTU();
+    let ip = localStorage.getItem('modbus_ip') || '127.0.0.1';
+    let port = localStorage.getItem('modbus_port') || '502';
+
+    document.getElementById('ip').value = ip;
+    document.getElementById('port').value = port;
+
+    async function connect() {
+      ip = document.getElementById('ip').value;
+      port = document.getElementById('port').value;
+      localStorage.setItem('modbus_ip', ip);
+      localStorage.setItem('modbus_port', port);
+
+      try {
+        await client.connectTCP(ip, { port: parseInt(port) });
+        client.setID(1);
+        document.getElementById('connection-status').textContent = 'Connected';
+        pollStatus();
+      } catch (err) {
+        document.getElementById('connection-status').textContent = 'Connection failed: ' + err;
+      }
+    }
+
+    function createButtons() {
+      const socketDiv = document.getElementById('sockets');
+      for (let i = 1; i <= 8; i++) {
+        const btn = document.createElement('button');
+        btn.textContent = `Socket ${i}`;
+        btn.onclick = () => client.writeRegister(1, i);
+        const status = document.createElement('span');
+        status.id = `input${i}`;
+        status.className = 'status gray';
+        socketDiv.appendChild(btn);
+        socketDiv.appendChild(status);
+        socketDiv.appendChild(document.createElement('br'));
+      }
+
+      const expanderDiv = document.getElementById('expanders');
+      for (let i = 1; i <= 4; i++) {
+        const btn = document.createElement('button');
+        btn.textContent = `Expander IO${i}`;
+        btn.onclick = () => client.writeRegister(14 + i, 1);
+        expanderDiv.appendChild(btn);
+      }
+    }
+
+    async function pollStatus() {
+      try {
+        setInterval(async () => {
+          const inputs = await client.readInputRegisters(1, 8);
+          inputs.data.forEach((val, i) => {
+            const led = document.getElementById(`input${i + 1}`);
+            if (led) led.className = 'status ' + (val ? 'green' : 'gray');
+          });
+
+          const holding = await client.readHoldingRegisters(1, 18);
+          document.getElementById('status').innerHTML = '';
+          for (let i = 11; i <= 18; i++) {
+            const label = document.createElement('span');
+            label.textContent = `Reg ${i}: ${holding.data[i - 1]}`;
+            label.style.marginRight = '20px';
+            document.getElementById('status').appendChild(label);
+          }
+        }, 1000);
+      } catch (e) {
+        console.error('Poll error:', e);
+      }
+    }
+
+    createButtons();
+  </script>
+</body>
+</html>
