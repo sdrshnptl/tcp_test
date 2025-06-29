@@ -49,20 +49,19 @@
     document.getElementById('ip').value = ip;
     document.getElementById('port').value = port;
 
-    async function connect() {
+    function connect() {
       ip = document.getElementById('ip').value;
       port = document.getElementById('port').value;
       localStorage.setItem('modbus_ip', ip);
       localStorage.setItem('modbus_port', port);
 
-      try {
-        await client.connectTCP(ip, { port: parseInt(port) });
+      client.connectTCP(ip, { port: parseInt(port) }).then(() => {
         client.setID(1);
         document.getElementById('connection-status').textContent = 'Connected';
         pollStatus();
-      } catch (err) {
+      }).catch(err => {
         document.getElementById('connection-status').textContent = 'Connection failed: ' + err;
-      }
+      });
     }
 
     function createButtons() {
@@ -88,9 +87,9 @@
       }
     }
 
-    async function pollStatus() {
-      try {
-        setInterval(async () => {
+    function pollStatus() {
+      setInterval(async () => {
+        try {
           const inputs = await client.readInputRegisters(1, 8);
           inputs.data.forEach((val, i) => {
             const led = document.getElementById(`input${i + 1}`);
@@ -105,10 +104,10 @@
             label.style.marginRight = '20px';
             document.getElementById('status').appendChild(label);
           }
-        }, 1000);
-      } catch (e) {
-        console.error('Poll error:', e);
-      }
+        } catch (e) {
+          console.error('Poll error:', e);
+        }
+      }, 1000);
     }
 
     createButtons();
